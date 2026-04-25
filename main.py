@@ -1,75 +1,82 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
+import csv
 
-fichier = r"C:\logiciel\vscode\projet pfa\amazon\amazon-e-commerce.csv"
+# 1. Génération du fichier ventes.csv
+with open("ventes.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow([
+        "Transaction ID", "Date", "Customer ID", "Gender",
+        "Product Category", "Quantity", "Price per Unit", "Remise (%)"
+    ])
+    writer.writerow([1, "2023-01-01", "CUST1", "Male", "Clothing", 2, 50, 10])
+    writer.writerow([2, "2023-01-02", "CUST2", "Female", "Beauty", 1, 30, 5])
+    writer.writerow([3, "2023-01-03", "CUST3", "Male", "Electronics", 3, 100, 15])
+    writer.writerow([4, "2023-01-04", "CUST4", "Female", "Clothing", 4, 25, 0])
+    writer.writerow([5, "2023-01-05", "CUST5", "Male", "Beauty", 2, 40, 20])
+    writer.writerow([6, "2023-01-06", "CUST6", "Female", "Electronics", 1, 200, 10])
+    writer.writerow([7, "2023-01-07", "CUST7", "Male", "Clothing", 3, 60, 5])
+    writer.writerow([8, "2023-01-08", "CUST8", "Female", "Beauty", 5, 20, 0])
 
-print("Chargement en cours...")
-df = pd.read_csv(fichier, encoding="utf-8")
-print(f"OK : {len(df)} lignes chargees")
+print("Fichier ventes.csv généré automatiquement.")
 
-df["CA_Brut"] = df["price"]
-df["CA_Net"]  = df["final_price"]
-df["TVA"]     = df["CA_Net"] * 0.20
-df["CA_TTC"]  = df["CA_Net"] + df["TVA"]
+# 2. Lecture des données
+df = pd.read_csv("ventes.csv")
+print("\nAperçu des données :")
+print(df.head())
 
-print("\n" + "="*50)
-print("     RAPPORT DES VENTES - AMAZON E-COMMERCE")
-print("="*50)
-print(f"  Transactions  : {len(df):>12,}")
-print(f"  CA Brut       : {df['CA_Brut'].sum():>12.2f} Rs")
-print(f"  Remises       : {(df['CA_Brut'] - df['CA_Net']).sum():>12.2f} Rs")
-print(f"  CA Net        : {df['CA_Net'].sum():>12.2f} Rs")
-print(f"  TVA (20%)     : {df['TVA'].sum():>12.2f} Rs")
-print(f"  CA TTC        : {df['CA_TTC'].sum():>12.2f} Rs")
-print("="*50)
+# 3. Calculs
+df["CA_Brut"] = df["Price per Unit"] * df["Quantity"]
+df["CA_Net"] = df["CA_Brut"] * (1 - df["Remise (%)"] / 100)
+df["TVA"] = df["CA_Net"] * 0.2
 
-idx = df["CA_Net"].idxmax()
-print(f"\nMeilleur produit : {df.loc[idx, 'product_id']}")
-print(f"Categorie        : {df.loc[idx, 'category']}")
-print(f"CA Net           : {df.loc[idx, 'CA_Net']:.2f} Rs")
+# 4. Résultats
+ca_total = df["CA_Net"].sum()
+print("\nChiffre d'affaires total :", round(ca_total, 2))
 
-print("\nCA Net par categorie :")
-print("-"*40)
-ca_cat = df.groupby("category")["CA_Net"].sum().sort_values(ascending=False)
-for cat, ca in ca_cat.items():
-    print(f"  {str(cat):<20} : {ca:>14.2f} Rs")
+best = df.loc[df["CA_Net"].idxmax()]
+print("\nProduit le plus rentable :")
+print(best[["Transaction ID", "Product Category", "CA_Net"]])
 
-os.makedirs("graphiques", exist_ok=True)
+# 5. Analyse
+ca_categorie = df.groupby("Product Category")["CA_Net"].sum()
+print("\nChiffre d'affaires par catégorie :")
+print(ca_categorie)
 
-plt.figure(figsize=(10, 5))
-plt.bar(ca_cat.index.astype(str), ca_cat.values, color="#4C72B0", edgecolor="white")
-plt.title("CA Net par categorie", fontsize=14, fontweight="bold")
-plt.xlabel("Categorie")
-plt.ylabel("CA Net (Rs)")
-plt.xticks(rotation=30, ha="right")
-plt.tight_layout()
-plt.savefig("graphiques/ca_par_categorie.png", dpi=150)
+ca_genre = df.groupby("Gender")["CA_Net"].sum()
+df["Date"] = pd.to_datetime(df["Date"])
+ca_temps = df.groupby("Date")["CA_Net"].sum()
+
+# 6. Export
+df.to_csv("resultats_final.csv", index=False)
+print("\nFichier resultats_final.csv créé.")
+
+# 7. Graphiques
+# Graphique 1 : CA par catégorie
+plt.figure()
+ca_categorie.plot(kind="bar")
+plt.title("Chiffre d'affaires par catégorie")
+plt.xlabel("Catégorie")
+plt.ylabel("CA Net")
+plt.xticks(rotation=30)
+plt.savefig("graphique_categorie.png")
 plt.close()
-print("Graphique 1 sauvegarde : ca_par_categorie.png")
 
-top_brands = df.groupby("brand")["CA_Net"].sum().sort_values(ascending=False).head(10)
-plt.figure(figsize=(10, 5))
-plt.bar(top_brands.index.astype(str), top_brands.values, color="#55A868", edgecolor="white")
-plt.title("Top 10 marques par CA Net", fontsize=14, fontweight="bold")
-plt.xlabel("Marque")
-plt.ylabel("CA Net (Rs)")
-plt.xticks(rotation=30, ha="right")
-plt.tight_layout()
-plt.savefig("graphiques/top10_marques.png", dpi=150)
+# Graphique 2 : CA par genre
+plt.figure()
+ca_genre.plot(kind="pie", autopct="%1.1f%%")
+plt.title("Répartition du CA par genre")
+plt.ylabel("")
+plt.savefig("graphique_genre.png")
 plt.close()
-print("Graphique 2 sauvegarde : top10_marques.png")
 
-ca_pay = df.groupby("payment_method")["CA_Net"].sum().sort_values(ascending=False)
-plt.figure(figsize=(7, 7))
-plt.pie(ca_pay.values, labels=ca_pay.index.astype(str),
-        autopct="%1.1f%%", startangle=140)
-plt.title("CA Net par methode de paiement", fontsize=13, fontweight="bold")
-plt.tight_layout()
-plt.savefig("graphiques/ca_par_paiement.png", dpi=150)
+# Graphique 3 : Évolution dans le temps
+plt.figure()
+ca_temps.plot(marker="o")
+plt.title("Évolution du chiffre d'affaires")
+plt.xlabel("Date")
+plt.ylabel("CA Net")
+plt.savefig("graphique_temps.png")
 plt.close()
-print("Graphique 3 sauvegarde : ca_par_paiement.png")
 
-df.to_csv("resultats_final.csv", index=False, encoding="utf-8")
-print("\nresultats_final.csv exporte avec succes")
-print("\nAnalyse Amazon E-commerce terminee avec succes !")
+print("Graphiques générés avec succès !")
